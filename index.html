@@ -1,0 +1,716 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
+  PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+} from 'recharts';
+import {
+  LayoutDashboard, BookOpen, Users, Calendar as CalendarIcon, Settings, Bell, Search, Plus,
+  MoreVertical, CheckCircle2, Clock, TrendingUp, TrendingDown, AlertCircle, GraduationCap,
+  Menu, X, FileText, Mail, Phone, ChevronRight, Filter, Download, ChevronLeft, ChevronDown,
+  MoreHorizontal, ArrowUpRight
+} from 'lucide-react';
+
+// --- Mock Data & Constants ---
+
+const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#10b981'];
+
+const performanceData = [
+  { name: 'Week 1', math: 78, science: 82, english: 75, avg: 78 },
+  { name: 'Week 2', math: 82, science: 80, english: 78, avg: 80 },
+  { name: 'Week 3', math: 85, science: 86, english: 80, avg: 83 },
+  { name: 'Week 4', math: 83, science: 88, english: 85, avg: 85 },
+  { name: 'Week 5', math: 89, science: 85, english: 87, avg: 87 },
+  { name: 'Week 6', math: 92, science: 90, english: 88, avg: 90 },
+];
+
+const attendanceData = [
+  { name: 'Mon', present: 95, absent: 5 },
+  { name: 'Tue', present: 92, absent: 8 },
+  { name: 'Wed', present: 98, absent: 2 },
+  { name: 'Thu', present: 94, absent: 6 },
+  { name: 'Fri', present: 88, absent: 12 },
+];
+
+const classDistribution = [
+  { name: 'A Grade', value: 35 },
+  { name: 'B Grade', value: 45 },
+  { name: 'C Grade', value: 15 },
+  { name: 'D/F Grade', value: 5 },
+];
+
+const allStudents = Array.from({ length: 15 }).map((_, i) => ({
+  id: i + 1,
+  name: ['Alex Johnson', 'Maria Garcia', 'Sam Wilson', 'Emily Chen', 'David Kim', 'Sarah Connor', 'James Bond', 'Lara Croft', 'Tony Stark', 'Bruce Wayne', 'Clark Kent', 'Diana Prince', 'Peter Parker', 'Natasha Romanoff', 'Steve Rogers'][i],
+  email: `student${i + 1}@school.edu`,
+  grade: ['10-A', '10-B', '11-A', '12-B', '10-A'][i % 5],
+  status: ['Active', 'Active', 'At Risk', 'Active', 'Inactive'][i % 5],
+  attendance: 85 + Math.floor(Math.random() * 15),
+  gpa: (2.5 + Math.random() * 1.5).toFixed(2),
+  lastActive: '2 hours ago'
+}));
+
+const upcomingClasses = [
+  { id: 1, subject: 'Advanced Mathematics', time: '09:00 AM - 10:30 AM', room: 'Rm 302', grade: '10-A', color: 'bg-blue-100 text-blue-700 border-blue-200', students: 28 },
+  { id: 2, subject: 'Physics Lab', time: '11:00 AM - 12:30 PM', room: 'Lab 2', grade: '11-B', color: 'bg-purple-100 text-purple-700 border-purple-200', students: 24 },
+  { id: 3, subject: 'Study Hall', time: '01:30 PM - 02:30 PM', room: 'Library', grade: 'Mix', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', students: 45 },
+  { id: 4, subject: 'Calculus II', time: '03:00 PM - 04:30 PM', room: 'Rm 305', grade: '12-A', color: 'bg-orange-100 text-orange-700 border-orange-200', students: 18 },
+];
+
+const initialTasks = [
+  { id: 1, text: 'Grade Midterm Papers (10-A)', completed: false, priority: 'high', due: 'Today' },
+  { id: 2, text: 'Prepare slides for Physics', completed: true, priority: 'medium', due: 'Tomorrow' },
+  { id: 3, text: 'Parent meeting: Sarah J.', completed: false, priority: 'high', due: '2pm' },
+  { id: 4, text: 'Upload attendance report', completed: false, priority: 'low', due: 'Fri' },
+];
+
+const notifications = [
+  { id: 1, title: 'New Message', message: 'Parent of Alex J. sent a message', time: '5m ago', read: false },
+  { id: 2, title: 'System Alert', message: 'Grades submission deadline approaching', time: '1h ago', read: false },
+  { id: 3, title: 'Assignment', message: '25 students submitted "Physics Lab 1"', time: '2h ago', read: true },
+];
+
+// --- Sub-Components ---
+
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+          <h3 className="font-bold text-lg text-slate-800">{title}</h3>
+          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full transition-colors"><X size={20} className="text-slate-500" /></button>
+        </div>
+        <div className="p-6">{children}</div>
+      </div>
+    </div>
+  );
+};
+
+const StatusBadge = ({ status }) => {
+  const styles = {
+    'Active': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'At Risk': 'bg-rose-100 text-rose-700 border-rose-200',
+    'Inactive': 'bg-slate-100 text-slate-700 border-slate-200'
+  };
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${styles[status] || styles['Inactive']}`}>
+      {status}
+    </span>
+  );
+};
+
+const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed, badge }) => (
+  <button
+    onClick={onClick}
+    className={`relative flex items-center w-full p-3 my-1.5 rounded-xl transition-all duration-200 group ${
+      active 
+        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
+        : 'text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
+    }`}
+  >
+    <Icon size={20} className={`${active ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'} transition-colors`} />
+    {!collapsed && (
+      <>
+        <span className="ml-3 font-medium text-sm">{label}</span>
+        {badge && (
+          <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
+            {badge}
+          </span>
+        )}
+      </>
+    )}
+  </button>
+);
+
+const StatCard = ({ title, value, change, changeType, icon: Icon, colorClass }) => (
+  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all duration-200 group">
+    <div className="flex justify-between items-start">
+      <div>
+        <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">{title}</p>
+        <h3 className="text-2xl font-bold text-slate-800 group-hover:scale-105 transition-transform origin-left">{value}</h3>
+      </div>
+      <div className={`p-3 rounded-xl ${colorClass} bg-opacity-10 group-hover:bg-opacity-20 transition-colors`}>
+        <Icon className={colorClass.replace('bg-', 'text-')} size={24} />
+      </div>
+    </div>
+    <div className="flex items-center mt-4 text-sm">
+      <span className={`flex items-center font-bold ${changeType === 'positive' ? 'text-emerald-500' : changeType === 'negative' ? 'text-rose-500' : 'text-amber-500'}`}>
+        {changeType === 'positive' ? <TrendingUp size={14} className="mr-1" /> : changeType === 'negative' ? <TrendingDown size={14} className="mr-1" /> : null}
+        {change}
+      </span>
+      <span className="text-slate-400 ml-1.5 text-xs">vs last month</span>
+    </div>
+  </div>
+);
+
+// --- View Components ---
+
+const OverviewView = ({ tasks, toggleTask, setIsModalOpen }) => (
+  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    {/* Stat Cards Grid */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+      <StatCard title="Total Students" value="156" change="12%" changeType="positive" icon={Users} colorClass="bg-blue-500 text-white" />
+      <StatCard title="Class Average" value="84%" change="2.4%" changeType="positive" icon={BookOpen} colorClass="bg-emerald-500 text-white" />
+      <StatCard title="Attendance" value="94.2%" change="0.8%" changeType="negative" icon={Clock} colorClass="bg-violet-500 text-white" />
+      <StatCard title="Pending Items" value="12" change="Low" changeType="neutral" icon={AlertCircle} colorClass="bg-orange-500 text-white" />
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main Chart */}
+      <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Performance Analytics</h3>
+            <p className="text-sm text-slate-500">Comparative analysis across terms</p>
+          </div>
+          <div className="flex gap-2">
+            <select className="bg-slate-50 border-none text-xs font-bold text-slate-600 rounded-lg py-2 px-3 cursor-pointer hover:bg-slate-100 transition-colors">
+              <option>This Semester</option>
+              <option>Last Semester</option>
+            </select>
+            <button className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
+              <Download size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={performanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorMath" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#cbd5e1" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#cbd5e1" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                itemStyle={{ color: '#475569', fontSize: '12px', fontWeight: '600' }}
+              />
+              <Area type="monotone" dataKey="math" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorMath)" name="Math Class" />
+              <Area type="monotone" dataKey="avg" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" fillOpacity={1} fill="url(#colorAvg)" name="School Avg" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Grade Distribution Radar/Pie */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+        <h3 className="text-lg font-bold text-slate-800 mb-2">Grade Distribution</h3>
+        <p className="text-sm text-slate-500 mb-6">Current term overview</p>
+        <div className="flex-1 min-h-[200px] relative">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={classDistribution}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {classDistribution.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="text-center">
+              <span className="block text-2xl font-bold text-slate-800">156</span>
+              <span className="text-xs text-slate-400 font-medium uppercase">Students</span>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          {classDistribution.map((item, index) => (
+            <div key={item.name} className="flex items-center gap-2 text-xs font-medium text-slate-600">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+              <span>{item.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Schedule Widget */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <div className="flex items-center justify-between mb-6">
+           <h3 className="text-lg font-bold text-slate-800">Today's Schedule</h3>
+           <button className="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded-lg transition-colors">
+             <MoreHorizontal size={20} />
+           </button>
+        </div>
+        <div className="space-y-4 relative">
+          <div className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-slate-100 z-0"></div>
+          {upcomingClasses.slice(0, 3).map((cls) => (
+            <div key={cls.id} className="relative z-10 flex gap-4 group cursor-pointer">
+              <div className="mt-1 flex-shrink-0 w-10 text-xs font-bold text-slate-400 text-right">
+                {cls.time.split(' - ')[0].replace(' ', '')}
+              </div>
+              <div className={`flex-1 p-3 rounded-xl border ${cls.color} hover:shadow-md transition-all duration-200 bg-white`}>
+                <div className="flex justify-between items-start">
+                  <h4 className="font-bold text-sm text-slate-800">{cls.subject}</h4>
+                  <span className="bg-white/80 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-slate-600 shadow-sm">
+                    {cls.room}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                   <div className="flex items-center gap-1 text-xs font-medium opacity-70">
+                     <Users size={12} /> {cls.students} Students
+                   </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tasks Widget */}
+      <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+           <div>
+             <h3 className="text-lg font-bold text-slate-800">Priority Tasks</h3>
+             <p className="text-xs text-slate-500">You have {tasks.filter(t => !t.completed).length} pending tasks</p>
+           </div>
+           <button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg transition-colors shadow-sm shadow-indigo-200"
+            >
+             <Plus size={18} />
+           </button>
+        </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {tasks.map(task => (
+            <div 
+              key={task.id} 
+              onClick={() => toggleTask(task.id)}
+              className={`p-4 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
+                task.completed 
+                  ? 'bg-slate-50 border-slate-100 opacity-60' 
+                  : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-sm'
+              }`}
+            >
+              <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                task.completed ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 bg-white'
+              }`}>
+                {task.completed && <CheckCircle2 size={14} className="text-white" />}
+              </div>
+              <div className="flex-1">
+                <p className={`text-sm font-semibold ${task.completed ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
+                  {task.text}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                   <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                     task.priority === 'high' ? 'bg-rose-100 text-rose-600' : task.priority === 'medium' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                   }`}>
+                     {task.priority}
+                   </span>
+                   <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                     <Clock size={10} /> {task.due}
+                   </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const StudentsView = () => {
+  const [search, setSearch] = useState('');
+  const filteredStudents = allStudents.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+      <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Student Directory</h2>
+          <p className="text-sm text-slate-500">Manage your class roster and performance</p>
+        </div>
+        <div className="flex gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Search students..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full sm:w-64 transition-all"
+            />
+          </div>
+          <button className="p-2 text-slate-500 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
+            <Filter size={18} />
+          </button>
+          <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-indigo-200">
+            <Plus size={16} />
+            <span className="hidden sm:inline">Add Student</span>
+          </button>
+        </div>
+      </div>
+      
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="bg-slate-50/50 text-slate-500 border-b border-slate-100">
+              <th className="px-6 py-4 font-semibold">Name</th>
+              <th className="px-6 py-4 font-semibold">ID</th>
+              <th className="px-6 py-4 font-semibold">Status</th>
+              <th className="px-6 py-4 font-semibold">GPA</th>
+              <th className="px-6 py-4 font-semibold">Attendance</th>
+              <th className="px-6 py-4 font-semibold text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {filteredStudents.map((student) => (
+              <tr key={student.id} className="hover:bg-slate-50/80 transition-colors group">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
+                      {student.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">{student.name}</p>
+                      <p className="text-xs text-slate-500">{student.grade}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-slate-500 font-mono text-xs">#{String(student.id).padStart(4, '0')}</td>
+                <td className="px-6 py-4"><StatusBadge status={student.status} /></td>
+                <td className="px-6 py-4 font-medium text-slate-700">{student.gpa}</td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${student.attendance > 90 ? 'bg-emerald-500' : student.attendance > 80 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${student.attendance}%` }} />
+                    </div>
+                    <span className="text-xs text-slate-500">{student.attendance}%</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <button className="text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors">
+                    <MoreHorizontal size={18} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+        <span>Showing {filteredStudents.length} students</span>
+        <div className="flex gap-2">
+          <button className="px-3 py-1 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50" disabled>Previous</button>
+          <button className="px-3 py-1 border border-slate-200 rounded-lg hover:bg-slate-50">Next</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ClassesView = () => (
+  <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
+    <div className="flex justify-between items-center">
+      <div>
+        <h2 className="text-xl font-bold text-slate-800">My Classes</h2>
+        <p className="text-slate-500 text-sm">Term 2 - Academic Year 2024</p>
+      </div>
+      <button className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm shadow-indigo-200 hover:bg-indigo-700 transition-colors">
+        Add Class
+      </button>
+    </div>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      {upcomingClasses.map((cls, idx) => (
+        <div key={idx} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden group">
+          <div className={`h-32 ${cls.color.replace('text-', 'bg-').replace('bg-', 'bg-opacity-20 ')} relative p-6`}>
+             <div className="absolute top-4 right-4 bg-white/90 p-2 rounded-lg shadow-sm cursor-pointer hover:bg-white transition-colors">
+                <Settings size={16} className="text-slate-400 hover:text-indigo-600" />
+             </div>
+             <span className="inline-block px-2 py-1 bg-white/90 rounded-md text-xs font-bold uppercase tracking-wider mb-2 shadow-sm">
+               {cls.grade}
+             </span>
+             <h3 className="text-xl font-bold text-slate-800">{cls.subject}</h3>
+             <p className="text-sm opacity-70 font-medium">{cls.students} Students Enrolled</p>
+          </div>
+          <div className="p-6">
+             <div className="flex justify-between text-sm mb-4">
+                <span className="text-slate-500">Next Session</span>
+                <span className="font-semibold text-indigo-600">{cls.time.split(' - ')[0]}</span>
+             </div>
+             <div className="space-y-3">
+               <div className="flex justify-between text-xs text-slate-500">
+                 <span>Course Progress</span>
+                 <span>65%</span>
+               </div>
+               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                 <div className="h-full bg-indigo-600 w-[65%] rounded-full" />
+               </div>
+             </div>
+             <div className="mt-6 pt-6 border-t border-slate-100 flex gap-2">
+                <button className="flex-1 py-2 text-sm font-medium text-slate-600 bg-slate-50 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                  Assignments
+                </button>
+                <button className="flex-1 py-2 text-sm font-medium text-slate-600 bg-slate-50 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                  Gradebook
+                </button>
+             </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// --- Main Layout Component ---
+
+export default function TeacherDashboard() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activePage, setActivePage] = useState('Overview');
+  const [tasks, setTasks] = useState(initialTasks);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(2);
+
+  const toggleTask = (id) => {
+    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  };
+
+  // Close mobile menu on resize
+  useEffect(() => {
+    const handleResize = () => window.innerWidth >= 1024 && setMobileMenuOpen(false);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const renderContent = () => {
+    switch(activePage) {
+      case 'Students': return <StudentsView />;
+      case 'Classes': return <ClassesView />;
+      case 'Overview':
+      default: return <OverviewView tasks={tasks} toggleTask={toggleTask} setIsModalOpen={setIsModalOpen} />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden text-slate-900">
+      
+      {/* Create Assessment Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="New Assessment">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+            <input type="text" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" placeholder="e.g. Midterm Exam" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Class</label>
+              <select className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                <option>10-A Math</option>
+                <option>11-B Physics</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
+              <input type="date" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+            <textarea className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg h-24 resize-none outline-none" placeholder="Instructions for students..."></textarea>
+          </div>
+          <div className="pt-2 flex gap-3">
+            <button onClick={() => setIsModalOpen(false)} className="flex-1 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+            <button onClick={() => setIsModalOpen(false)} className="flex-1 py-2 bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-lg transition-colors shadow-md shadow-indigo-200">Create Assessment</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Mobile Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside 
+        className={`fixed lg:static inset-y-0 left-0 z-50 bg-white border-r border-slate-200 transition-all duration-300 flex flex-col ${
+          mobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0'
+        } ${!mobileMenuOpen && !sidebarOpen ? 'lg:w-20' : 'lg:w-64'}`}
+      >
+        <div className="h-20 flex items-center px-6 border-b border-slate-100 justify-between">
+          <div className="flex items-center gap-3 text-indigo-600 overflow-hidden whitespace-nowrap">
+            <div className="p-2 bg-indigo-600 rounded-xl shadow-md shadow-indigo-200 flex-shrink-0">
+              <GraduationCap className="text-white" size={20} />
+            </div>
+            {(!sidebarOpen && !mobileMenuOpen) ? null : (
+              <span className="font-bold text-xl tracking-tight text-slate-800">EduDash</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
+          <SidebarItem icon={LayoutDashboard} label="Overview" active={activePage === 'Overview'} onClick={() => setActivePage('Overview')} collapsed={!sidebarOpen && !mobileMenuOpen} />
+          <SidebarItem icon={BookOpen} label="Classes" active={activePage === 'Classes'} onClick={() => setActivePage('Classes')} collapsed={!sidebarOpen && !mobileMenuOpen} />
+          <SidebarItem icon={Users} label="Students" active={activePage === 'Students'} onClick={() => setActivePage('Students')} collapsed={!sidebarOpen && !mobileMenuOpen} />
+          <SidebarItem icon={CalendarIcon} label="Schedule" active={activePage === 'Schedule'} onClick={() => setActivePage('Schedule')} collapsed={!sidebarOpen && !mobileMenuOpen} />
+          <SidebarItem icon={FileText} label="Assignments" active={activePage === 'Assignments'} onClick={() => setActivePage('Assignments')} badge="4" collapsed={!sidebarOpen && !mobileMenuOpen} />
+        </div>
+
+        <div className="p-4 border-t border-slate-100">
+          <SidebarItem icon={Settings} label="Settings" active={activePage === 'Settings'} onClick={() => setActivePage('Settings')} collapsed={!sidebarOpen && !mobileMenuOpen} />
+          
+          {(!sidebarOpen && !mobileMenuOpen) && (
+            <div className="mt-6 bg-gradient-to-br from-indigo-600 to-violet-600 p-4 rounded-2xl text-white shadow-lg shadow-indigo-200">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center">
+                  <ArrowUpRight className="text-white" size={16} />
+                </div>
+                <p className="text-xs font-bold">Pro Plan</p>
+              </div>
+              <p className="text-[10px] text-indigo-100 mb-3 opacity-80">Upgrade for advanced analytics and more storage.</p>
+              <button className="w-full py-2 bg-white text-indigo-600 text-xs font-bold rounded-lg hover:bg-indigo-50 transition-colors">
+                View Plans
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-slate-50">
+        {/* Header */}
+        <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-6 z-30 sticky top-0">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <Menu size={24} />
+            </button>
+            <button 
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="hidden lg:block p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="relative hidden sm:block group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search anything..." 
+                className="pl-10 pr-4 py-2.5 bg-slate-100 border-none rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white w-64 transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`relative p-2.5 rounded-full transition-all ${showNotifications ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-100'}`}
+              >
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white animate-pulse"></span>
+                )}
+              </button>
+
+              {/* Notifications Dropdown */}
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                      <h3 className="font-bold text-sm text-slate-800">Notifications</h3>
+                      <button className="text-xs text-indigo-600 font-medium hover:underline" onClick={() => setUnreadCount(0)}>Mark all read</button>
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto">
+                      {notifications.map(notif => (
+                        <div key={notif.id} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3">
+                          <div className={`w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${notif.read ? 'bg-slate-200' : 'bg-indigo-500'}`} />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">{notif.title}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{notif.message}</p>
+                            <p className="text-[10px] text-slate-400 mt-2">{notif.time}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-3 text-center bg-slate-50 border-t border-slate-100">
+                      <button className="text-xs font-bold text-slate-600 hover:text-indigo-600">View All Activity</button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="h-8 w-[1px] bg-slate-200 mx-2 hidden sm:block"></div>
+
+            <button className="flex items-center gap-3 px-2 py-1.5 hover:bg-slate-100 rounded-xl transition-colors">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold text-slate-800 leading-none">Sarah Jenkins</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">Admin</p>
+              </div>
+              <div className="w-9 h-9 rounded-full bg-indigo-100 border-2 border-white shadow-sm flex items-center justify-center overflow-hidden">
+                <img 
+                  src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah&backgroundColor=c7d2fe" 
+                  alt="Profile" 
+                  className="w-full h-full"
+                />
+              </div>
+              <ChevronDown size={16} className="text-slate-400 hidden sm:block" />
+            </button>
+          </div>
+        </header>
+
+        {/* Dashboard Content Area */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+          <div className="max-w-7xl mx-auto space-y-8">
+            
+            {/* Dynamic Header for each View */}
+            {activePage === 'Overview' && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-left-4 duration-500">
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Overview</h1>
+                  <p className="text-slate-500 mt-1 text-sm">Welcome back, Sarah. You have <span className="font-bold text-indigo-600">{tasks.filter(t=>!t.completed).length} tasks</span> pending today.</p>
+                </div>
+                <div className="flex gap-3">
+                   <button className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
+                     Generate Report
+                   </button>
+                   <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium shadow-md shadow-indigo-200 transition-all hover:scale-105 active:scale-95"
+                   >
+                    <Plus size={18} />
+                    <span>New Assessment</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Render Active View */}
+            {renderContent()}
+
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
